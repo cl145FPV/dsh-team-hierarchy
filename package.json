@@ -1,0 +1,39 @@
+{
+  "name": "dsh-team-hierarchy",
+  "version": "0.6.1",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "description": "Three-tier agent team presets for DeepSeek Harness: a project manager that only talks, foremen that split work, and workers that execute.",
+  "exports": {
+    ".": "./index.js",
+    "./tools": "./tools.js",
+    "./delegate": "./delegate.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "index.js",
+    "tools.js",
+    "delegate.js",
+    "client.js",
+    "vendor/schemastery.mjs",
+    "vendor/cosmokit.mjs",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "INSTALL.md",
+    "docs/structure-v2.png",
+    "docs/roles-ui.png"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  }
+}

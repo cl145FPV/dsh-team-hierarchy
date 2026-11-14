@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Three-tier agent team">
+  <rect width="48" height="48" rx="10" fill="#1b2430"/>
+  <g stroke="#5ec8d8" stroke-width="1.6" stroke-linecap="round" fill="none">
+    <path d="M24 12.5v4.5"/>
+    <path d="M24 17h-9.5v4.5"/>
+    <path d="M24 17h9.5v4.5"/>
+    <path d="M14.5 26v4"/>
+    <path d="M33.5 26v4"/>
+    <path d="M14.5 30h-5v4"/>
+    <path d="M14.5 30h5v4"/>
+    <path d="M33.5 30h-5v4"/>
+    <path d="M33.5 30h5v4"/>
+  </g>
+  <g fill="#8be0ea">
+    <rect x="17.5" y="7" width="13" height="6" rx="2"/>
+  </g>
+  <g fill="#4a9fb2">
+    <rect x="8" y="21.5" width="13" height="5.5" rx="2"/>
+    <rect x="27" y="21.5" width="13" height="5.5" rx="2"/>
+  </g>
+  <g fill="#2f6d7d">
+    <rect x="6" y="34" width="7" height="5" rx="1.6"/>
+    <rect x="16" y="34" width="7" height="5" rx="1.6"/>
+    <rect x="25" y="34" width="7" height="5" rx="1.6"/>
+    <rect x="35" y="34" width="7" height="5" rx="1.6"/>
+  </g>
+</svg>
