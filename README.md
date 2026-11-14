@@ -2,6 +2,18 @@
 
 一个 DSH 插件包：装好之后，新建会话时多出四个预设，岗位模型在设置里配。
 
+仓库：<https://github.com/cl145FPV/dsh-team-hierarchy> · 许可 MIT
+
+## 安装
+
+```bat
+dsh plugin --profile desktop add github:cl145FPV/dsh-team-hierarchy
+```
+
+装完**完全退出 DSH** 再启动（Host 半区有代码，不重启不加载）。
+
+环境要求、更新方式、验证步骤见 [INSTALL.md](INSTALL.md)。
+
 ## 四个岗位
 
 | 预设 | 干什么 | 工具 |
