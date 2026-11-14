@@ -70,6 +70,10 @@ dsh plugin --profile desktop add github:cl145FPV/dsh-team-hierarchy
 - 普工/技术员挂了 `tool-subagent-control` 只为了 `send_message` 回报，另外两个工具（`list_agents` / `interrupt_agent`）对它们是空转——这三个工具拆不开。
 - `catalogJson` 每 60 秒重算一次；如果 `listModels` 顺序不稳定会重复写盘（低风险）。
 
+## 工作原理
+
+![工作原理](docs/how-it-works.png)
+
 ## 插件结构
 
 ![插件结构](docs/plugin-structure.png)

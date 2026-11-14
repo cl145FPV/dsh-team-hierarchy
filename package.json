@@ -1,6 +1,6 @@
 {
   "name": "dsh-team-hierarchy",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "private": true,
   "type": "module",
   "main": "index.js",
@@ -38,7 +38,8 @@
     "LICENSE",
     "docs/structure-v2.png",
     "docs/roles-ui.png",
-    "docs/plugin-structure.png"
+    "docs/plugin-structure.png",
+    "docs/how-it-works.png"
   ],
   "dsh": {
     "bundle": {
