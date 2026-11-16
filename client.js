@@ -29,6 +29,7 @@ window.__ModuleLoader__.load({
       { key: 'lead', label: '小组长', hint: '一条战线的负责人：拆解、验收、压缩上报。' },
       { key: 'worker', label: '普工', hint: '只干拆好的活。默认 low 档，够用就行。' },
       { key: 'tech', label: '技术员', hint: '查资料、验方案。默认 high 档。' },
+      { key: 'review', label: '审查员', hint: '只读，专挑 bug。改动跨多文件时才值得派。' },
     ];
 
     var EFFORTS = ['off', 'low', 'high', 'max'];
@@ -77,6 +78,15 @@ window.__ModuleLoader__.load({
     var EMPTY = {};
     var hostCtx = null;
 
+    var ROLE_LABEL = {
+      pm: '项目经理',
+      lead: '小组长',
+      worker: '普工',
+      tech: '技术员',
+      review: '审查员',
+    };
+
+
     /** 原生 option 的弹出层只认 inline 底色，这里统一给。 */
     var OPT_STYLE = { background: '#1a1f26', color: '#e8eef5' };
 
@@ -84,14 +94,17 @@ window.__ModuleLoader__.load({
       return h('option', { key: key, value: value, style: OPT_STYLE }, label);
     }
 
-    /** 订阅共享配置表单的草稿/已接受值。 */
+    /** 订阅共享配置表单的草稿/已接受值。form 还没就绪时安全返回 null。 */
     function useFormSnapshot(form) {
       var useSync = React.useSyncExternalStore;
       var subscribe = React.useCallback(
-        function (listener) { return form.subscribe(listener); },
+        function (listener) {
+          if (!form) return function () {};
+          return form.subscribe(listener);
+        },
         [form],
       );
-      var read = React.useCallback(function () { return form.getSnapshot(); }, [form]);
+      var read = React.useCallback(function () { return form ? form.getSnapshot() : null; }, [form]);
       if (typeof useSync === 'function') return useSync(subscribe, read);
       var state = React.useState(read());
       var value = state[0];
@@ -403,6 +416,218 @@ window.__ModuleLoader__.load({
       );
     }
 
+    /** 标题栏和全局浮层之间的开关。两个组件在不同 scope，靠它联动。 */
+    var panelStore = {
+      open: false,
+      listeners: [],
+      set: function (next) {
+        panelStore.open = next;
+        for (var i = 0; i < panelStore.listeners.length; i += 1) panelStore.listeners[i]();
+      },
+      subscribe: function (fn) {
+        panelStore.listeners.push(fn);
+        return function () {
+          panelStore.listeners = panelStore.listeners.filter(function (x) { return x !== fn; });
+        };
+      },
+      get: function () { return panelStore.open; },
+    };
+
+    function readSnapshot(value) {
+      try {
+        return JSON.parse(String(value.teamSnapshot || '{}')) || EMPTY;
+      } catch {
+        return EMPTY;
+      }
+    }
+
+    /** 全局浮层里的团队详情面板。挂 shell.overlay 所以不会被标题栏裁切。 */
+    function TeamPanel() {
+      var open = React.useSyncExternalStore(panelStore.subscribe, panelStore.get);
+      var snap = useFormSnapshot(currentForm) || EMPTY;
+      var snapshot = readSnapshot(snap.value || EMPTY);
+
+      var total = Number(snapshot.total) || 0;
+      var running = Number(snapshot.running) || 0;
+      var members = Array.isArray(snapshot.members) ? snapshot.members : [];
+
+      if (!open) return null;
+
+      var rows = members.map(function (m, i) {
+        var isRunning = m.activity === 'running';
+        var roleLabel = ROLE_LABEL[m.role] || '未登记';
+        return h(
+          'div',
+          {
+            key: 'm' + i,
+            style: {
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              padding: '10px 12px',
+              borderRadius: '8px',
+              background: isRunning ? 'rgba(111,207,135,0.07)' : 'rgba(127,127,127,0.05)',
+              marginBottom: '6px',
+            },
+          },
+          h('span', { style: { fontSize: '10px', color: isRunning ? '#6fcf87' : '#8b9aab' } }, isRunning ? '●' : '○'),
+          h(
+            'span',
+            {
+              style: {
+                fontSize: '12px',
+                padding: '1px 8px',
+                borderRadius: '6px',
+                background: 'rgba(127,127,127,0.14)',
+                whiteSpace: 'nowrap',
+              },
+            },
+            roleLabel,
+          ),
+          h('span', { style: { flex: '1', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, String(m.label || '')),
+          h('span', { style: { fontSize: '11px', opacity: '0.55', whiteSpace: 'nowrap' } }, isRunning ? '跑着' : '空闲'),
+        );
+      });
+
+      return h(
+        'div',
+        {
+          style: {
+            position: 'fixed',
+            inset: '0',
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: '9999',
+          },
+          onClick: function () { panelStore.set(false); },
+        },
+        h(
+          'div',
+          {
+            onClick: function (e) { e.stopPropagation(); },
+            style: {
+              width: '540px',
+              maxWidth: '90vw',
+              maxHeight: '76vh',
+              overflow: 'auto',
+              padding: '22px 24px 18px',
+              borderRadius: '14px',
+              border: '1px solid rgba(127,127,127,0.28)',
+              background: '#171a1f',
+              color: '#e8eef5',
+              fontFamily: 'inherit',
+              boxShadow: '0 18px 60px rgba(0,0,0,0.55)',
+            },
+          },
+          h(
+            'div',
+            { style: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '16px' } },
+            h('span', { style: { fontSize: '16px', fontWeight: '600' } }, '团队状态'),
+            h(
+              'span',
+              { style: { fontSize: '12px', opacity: '0.5', cursor: 'pointer' }, onClick: function () { panelStore.set(false); } },
+              '关闭',
+            ),
+          ),
+
+          h(
+            'div',
+            { style: { fontSize: '12px', opacity: '0.6', marginBottom: '8px' } },
+            '下级 ' + running + ' 个在跑 / 共 ' + total + ' 个',
+          ),
+          members.length === 0
+            ? h('div', { style: { fontSize: '12.5px', opacity: '0.55', padding: '14px 0' } }, '现在还没有下级。')
+            : h('div', null, rows),
+
+          h(
+            'div',
+            { style: { marginTop: '14px', fontSize: '11.5px', opacity: '0.45' } },
+            snapshot.at ? '快照时间 ' + new Date(snapshot.at).toLocaleTimeString() : '还没有快照——派过活并调过一次 team_status 之后才有数据',
+          ),
+        ),
+      );
+    }
+
+    /**
+     * 会话标题栏的团队状态条：在跑/总数 · 当前会话上下文占用。
+     * 数据来自 Host 写入 Config 的 teamSnapshot（由 team_status 更新），
+     * 不读会话投影——那个字段名没有稳定保证。
+     */
+    function TeamStatusBar(props) {
+      var form = props.form || currentForm;
+      var snap = useFormSnapshot(form) || EMPTY;
+      var value = snap.value || EMPTY;
+      var snapshot = readSnapshot(value);
+
+      var total = Number(snapshot.total);
+      if (!Number.isFinite(total) || total <= 0) return null;
+
+      var members = Array.isArray(snapshot.members) ? snapshot.members : [];
+
+      // 按岗位聚合：每个岗位一格，显示「在跑数/总数」。没人的岗位不占位。
+      var ROLE_ORDER = ['lead', 'worker', 'tech', 'review'];
+      var byRole = {};
+      for (var i = 0; i < members.length; i += 1) {
+        var role = members[i].role || 'unknown';
+        if (!byRole[role]) byRole[role] = { running: 0, total: 0 };
+        byRole[role].total += 1;
+        if (members[i].activity === 'running') byRole[role].running += 1;
+      }
+
+      var cells = [];
+      for (var j = 0; j < ROLE_ORDER.length; j += 1) {
+        var key = ROLE_ORDER[j];
+        var stat = byRole[key];
+        if (!stat || stat.total === 0) continue;
+        var live = stat.running > 0;
+        cells.push(
+          h(
+            'span',
+            { key: key, style: { display: 'inline-flex', alignItems: 'center', gap: '5px' } },
+            h('span', { style: { fontSize: '9px', color: live ? '#6fcf87' : '#8b9aab' } }, live ? '●' : '○'),
+            h('span', { style: { fontSize: '12px', opacity: '0.72' } }, ROLE_LABEL[key] || key),
+            h(
+              'span',
+              { style: { fontSize: '12px', fontWeight: '600', color: live ? '#6fcf87' : 'inherit' } },
+              stat.running + '/' + stat.total,
+            ),
+          ),
+        );
+      }
+
+      // 角色映射丢了（重启前的旧子会话）时退回一个总数，不至于什么都不显示。
+      if (cells.length === 0) {
+        var runningCount = Number(snapshot.running) || 0;
+        cells.push(h('span', { key: 'all', style: { fontSize: '12px' } }, runningCount + '/' + total + ' 下级'));
+      }
+
+      return h(
+        'button',
+        {
+          type: 'button',
+          title: '点开看团队详情',
+          onClick: function () { panelStore.set(true); },
+          style: {
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '14px',
+            padding: '5px 14px',
+            borderRadius: '999px',
+            border: '1px solid rgba(127,127,127,0.34)',
+            background: 'rgba(127,127,127,0.08)',
+            lineHeight: '20px',
+            whiteSpace: 'nowrap',
+            color: 'inherit',
+            cursor: 'pointer',
+            font: 'inherit',
+          },
+        },
+        cells,
+      );
+    }
+
     // remote 必须显式注入：官方 ui-settings 文档写的做法就是「inject the remote service」。
     // 不注入时访问 ctx.remote 会抛错，只能被 catch 掉，数据就永远拿不到。
     var inject = ['slots', 'configForms', 'remote'];
@@ -412,6 +637,28 @@ window.__ModuleLoader__.load({
     function apply(ctx) {
       hostCtx = ctx;
       currentForm = ctx.configForms.get(NS);
+
+      // 详情面板挂全局浮层：标题栏会裁切溢出内容，浮层不会。
+      ctx.slots.inject('shell.overlay', function () {
+        return ctx.slots.register(
+          { name: 'shell.overlay', id: 'team-panel', order: 200 },
+          TeamPanel,
+        );
+      });
+
+      // 标题栏状态条：插在官方的子会话计数（order 10）之后。
+      ctx.slots.inject('conversation.session.header.actions', function () {
+        return ctx.slots.register(
+          {
+            name: 'conversation.session.header.actions',
+            id: 'team-status',
+            order: 15,
+            label: function () { return '团队状态'; },
+            inject: function () { return { form: currentForm }; },
+          },
+          TeamStatusBar,
+        );
+      });
       ctx.slots.inject('settings.section', function () {
         return ctx.slots.register({
           name: 'settings.section',

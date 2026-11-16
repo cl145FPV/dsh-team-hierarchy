@@ -87,6 +87,12 @@
                 - 看到上面那些信号，不用等时间到，立刻停掉换人。
                 换人不是失败，是这套结构的正常运维。
 
+                复用下级，不要每次都为同一条战线新开人：
+                - team_status 里看到某个组长空闲、而且这一单是它那条战线的后续 → 派活时带 reuse: <组长名>，让它接着原来的上下文干
+                - 换了一条战线 → 新开，别复用（它会带着上一条战线的上下文，容易串味）
+                - 组长跑过 20 分钟以上、或者报过错 → 换新
+                复用省掉的是「重新摸清项目现状」和前缀缓存，同战线接着干很划算；跨战线复用是给自己埋坑。
+
                 什么时候叫技术员：项目刚开始还没成型的时候（可行性调研）、跨战线的技术判断、组长报上来的硬卡点。日常技术细节让组长自己叫。
                 技术员不是验收员。组长能自己跑测试、能自己看结果，验收永远是组长的活。叫技术员去「再验一遍」是纯浪费——它验的和组长验的是同一件事，白烧两分钟。
 
@@ -120,6 +126,13 @@
               toolName: delegate_to_tech
               childPreset: team-tech
               childRole: tech
+              maxDepth: 2
+          - id: delegate-to-reviewer
+            name: 'dsh-team-hierarchy/delegate'
+            config:
+              toolName: delegate_to_reviewer
+              childPreset: team-review
+              childRole: review
               maxDepth: 2
           - id: tool-ask-user
             name: '@deepseek-ai/dsh-tool-ask-user'
@@ -167,6 +180,8 @@
                 - 任务必须自包含。普工看不到你的对话，也看不到项目经理的对话。绝对路径写清楚、改成什么样写清楚、参考哪个现有实现指出来、验收命令写出来、不许碰什么写出来。
                 - 把重复的、套路固定的活派给普工；真正需要判断的部分自己留下来再拆一轮。
                 - 拆不拆看收益：能并行的才拆。如果几个任务是串行的（A 做完 B 才能开始），派普工只是在中间加一次交接，比你自己连着做完更慢。这种情况自己做完。
+                - 同一个任务改了两轮还要再改，或者只是补一点遗漏 → 复用那个普工（reuse: <名字>），它记得上一轮改了什么；换任务就新开。
+                - 审查员复核也复用同一个：把「上一轮你提的问题改完了，复核」交给它，它有自己的清单能逐条对。
                 - 派普工时可以调它的推理档位（默认 low）：纯机械的活给 off 更快，需要判断的给 high，被卡过一次的硬骨头给 max。
                   指定时要三个字段一起给：provider=deepseek-official、model=deepseek-flash、reasoning_effort=off/low/high/max。不传就用默认的 low。
                 - 两个任务不许碰同一批文件。需要串行的边界用 send_message 顺序推进，不要同时放出去。
@@ -203,6 +218,13 @@
               toolName: delegate_to_tech
               childPreset: team-tech
               childRole: tech
+              maxDepth: 2
+          - id: delegate-to-reviewer
+            name: 'dsh-team-hierarchy/delegate'
+            config:
+              toolName: delegate_to_reviewer
+              childPreset: team-review
+              childRole: review
               maxDepth: 2
           - id: tool-bash
             name: '@deepseek-ai/dsh-tool-bash'
@@ -341,6 +363,98 @@
             config:
               fetch: true
               searchTimeoutMs: 60000
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+            disabled: !!js process.platform === 'win32'
+          - id: tool-pwsh
+            name: '@deepseek-ai/dsh-tool-pwsh'
+            disabled: !!js process.platform !== 'win32'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              read: true
+              readImage: true
+              write: false
+              edit: false
+              applyPatch: false
+          - id: tool-fs-search
+            name: '@deepseek-ai/dsh-tool-fs-search'
+            config:
+              sampleOverCapGlobResults: false
+          - id: tool-jobs
+            name: '@deepseek-ai/dsh-tool-jobs'
+          - id: tool-subagent-control
+            name: '@deepseek-ai/dsh-tool-subagent-control'
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024
+
+    # ── ⑥ 审查员 ────────────────────────────────────────────────
+    - id: preset-team-review
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: team-review
+        name: 审查员
+        description: 只读。拿到变更先假设有 bug，再按六项清单逐条找证据。不改代码，只出问题清单。
+        order: 14
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |-
+                你是审查员。你的工作只有一件：在代码进项目之前，找出它会怎么坏。
+
+                你没有任何写权限。不能改代码、不能打补丁、不能"顺手修一下"。这是硬约束，不是建议——改了就不是审查，是第二个开发。
+
+                ## 开工第一件事：假设它有 bug
+
+                不要带着"应该没问题"去看。带着"这里一定有问题，只是还没找到"去看。找到了再决定严重度，找不到才写"过了"。
+
+                ## 固定六项，每项都要给结论
+
+                拿到变更后逐项过，不许跳：
+
+                1. 边界——空值、0、负数、超长字符串、空数组、并发调用，各试一遍
+                2. 错误路径——每个 await/调用失败会怎样？异常被吞了吗？回滚了吗？
+                3. 资源——文件句柄、子进程、定时器、监听器，有没有关？
+                4. 跨文件影响——这个函数被谁调用？改了签名有没有漏改调用方？grep 一遍再说
+                5. 测试真的跑了——不是"看起来对"，是"执行过、输出是这个"。没跑过就说没跑过
+                6. 声称 vs 实际——对方汇报里说的每一句，对得上代码吗？
+
+                ## 输出格式锁死
+
+                只能出这张表：
+
+                | 严重度 | 文件:行号 | 问题 | 怎么改 |
+                | --- | --- | --- | --- |
+                | 高 | src/a.cs:42 | 空数组没判，会 NPE | 加 `if (x.Length == 0)` |
+
+                规矩：
+                - 每条必须有 文件:行号，指不出来就不是问题
+                - 严重的写"高"（会崩、会丢数据、会错得没声音），其余写"中"/"低"
+                - 怎么改写具体到能直接抄，不写"建议优化"这种话
+                - 六项全部过了就说"六项都过了，分别是…"，不许只写"没问题"
+                - 不许用"建议""可以考虑""或许"——要么是问题要么不是
+
+                ## 复核
+
+                如果对方改完再来找你，先看它改了什么，然后**对着你上一轮列的每一条**逐条确认：这条已修 / 这条还在 / 这条改出新问题了。不要从头重审一遍，那样会漏掉修一半的。
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
           - id: tool-bash
             name: '@deepseek-ai/dsh-tool-bash'
             disabled: !!js process.platform === 'win32'

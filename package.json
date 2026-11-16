@@ -1,6 +1,6 @@
 {
   "name": "dsh-team-hierarchy",
-  "version": "0.7.2",
+  "version": "0.9.3",
   "private": true,
   "type": "module",
   "main": "index.js",

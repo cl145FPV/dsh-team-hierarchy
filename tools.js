@@ -201,6 +201,32 @@ export function apply(ctx) {
       const verdict = running === 0
         ? '可以收工：没有下级还在跑。'
         : `不能收工：还有 ${running} 个下级在跑，用 wait_agent 继续等，别提前宣布完成。`
+
+      // 顺手把快照写进 Host 配置，标题栏状态条读它。写失败不影响工具结果。
+      try {
+        const snapshot = {
+          at: Date.now(),
+          running,
+          total: usable.length,
+          members: usable.map((r) => {
+            const known = globalThis.__dshTeamChildRoles?.[String(r.id)]
+            return {
+              label: String(r.label ?? known?.label ?? r.id),
+              role: known?.role ?? null,
+              mode: r.mode,
+              activity: r.activity,
+              depth: r.depth,
+            }
+          }),
+        }
+        const write = globalThis.__dshTeamWriteRoles
+        if (typeof write === 'function') {
+          await write({ teamSnapshot: JSON.stringify(snapshot) })
+        }
+      } catch {
+        /* 快照是旁路，失败不报 */
+      }
+
       return `共 ${usable.length} 个下级，${running} 个在跑：\n\n${lines.join('\n')}\n\n${verdict}`
     },
   }
@@ -237,7 +263,7 @@ export function apply(ctx) {
             type: 'object',
             additionalProperties: false,
             properties: {
-              role: { type: 'string', enum: ['lead', 'worker', 'tech', 'pm'], description: '改哪个岗位。' },
+              role: { type: 'string', enum: ['lead', 'worker', 'tech', 'review', 'pm'], description: '改哪个岗位。' },
               provider: { type: 'string', description: 'provider id；留空字符串表示继承上级。' },
               model: { type: 'string', description: '模型 id；留空字符串表示继承上级。' },
               effort: { type: 'string', enum: ['off', 'low', 'high', 'max'], description: '档位。' },
@@ -251,8 +277,8 @@ export function apply(ctx) {
     output: TEXT_OUTPUT,
     isConcurrencySafe: () => false,
     async execute(args, exec) {
-      const ROLES = ['lead', 'worker', 'tech', 'pm']
-      const EFFORT_DEFAULT = { pm: 'high', lead: 'high', worker: 'low', tech: 'high' }
+      const ROLES = ['lead', 'worker', 'tech', 'review', 'pm']
+      const EFFORT_DEFAULT = { pm: 'high', lead: 'high', worker: 'low', tech: 'high', review: 'high' }
 
       // 读的和 delegate 读的是同一份：Host 插件的 Config。
       // 以前这里读 roles.json，delegate 却优先读 Config，两份值打架，

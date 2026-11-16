@@ -22,7 +22,7 @@ export const inject = ['llm', 'configEditor']
 
 function roleFields() {
   const out = {}
-  for (const role of ['lead', 'worker', 'tech']) {
+  for (const role of ['lead', 'worker', 'tech', 'review']) {
     out[`${role}Provider`] = z.string().default('').volatile()
       .description(`${role} 用的 provider id；留空表示继承上级。必须和下面的模型同时填或同时留空。`)
     out[`${role}Model`] = z.string().default('').volatile()
@@ -34,6 +34,11 @@ function roleFields() {
   // 这台机器上已添加的 provider 和模型。
   out.catalogJson = z.string().default('[]').volatile()
     .description('自动生成：本机已添加的 provider 与模型目录（JSON）。不用手填。')
+  // 由 team_status 算好写进来，供会话标题栏的状态条读取。
+  // 走这条路而不是让 Client 去读会话投影：标题栏组件拿投影的字段名没有稳定保证，
+  // 而 Config 是已经验证过能读的通道。
+  out.teamSnapshot = z.string().default('{}').volatile()
+    .description('自动生成：团队状态快照（JSON）。由 team_status 更新，不用手填。')
   return out
 }
 

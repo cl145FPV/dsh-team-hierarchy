@@ -22,8 +22,9 @@ dsh plugin --profile desktop add github:cl145FPV/dsh-team-hierarchy
 | **小组长** | 接一条战线。摸清现状、拆成普工任务、自己验收、压成结论报回去 | 完整读写 + shell + 派普工 + 叫技术员 |
 | **普工** | 拿一条拆到位的任务直接干完，四行回报 | 读写 + shell + 后台任务 |
 | **技术员** | 翻研究库、搜开源、跑实验验证方案，结论卡 + 全文落盘 | 联网 + 只读项目 + shell |
+| **审查员** | 只读，先假设有 bug 再找证据。按六项清单出问题表格，不改代码 | 只读 + shell（跑测试）+ 搜索 |
 
-层级：`PM(0) → 小组长(1) → 普工(2)`，`小组长(1) → 技术员(2)`，`PM(0) → 技术员(1)`。
+层级：`PM(0) → 小组长(1) → 普工(2)`，`小组长(1) → 技术员(2)`，`PM(0) → 技术员(1)`，`小组长(1) → 审查员(2)`，`PM(0) → 审查员(1)`。
 
 ## 怎么用
 
@@ -49,6 +50,7 @@ dsh plugin --profile desktop add github:cl145FPV/dsh-team-hierarchy
 | `delegate_to_foreman` | PM | 派战线给小组长 |
 | `delegate_to_tech` | PM / 小组长 | 叫技术员解难题 |
 | `delegate_to_worker` | 小组长 | 派任务给普工 |
+| `delegate_to_reviewer` | PM / 小组长 | 派审查员挑 bug |
 | `ledger_read` / `ledger_update` | PM | 项目账本（磁盘上，压缩后读回来） |
 | `team_status` | PM | 看整棵树，结论行直说「可以收工 / 不能收工」 |
 | `role_config` | PM | 查 / 改岗位模型配置 |

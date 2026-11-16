@@ -13,7 +13,7 @@ export const name = 'dsh-team-hierarchy/delegate'
 // startActivation 会读到空的东西。官方工具也是 inject 注入后直接用 ctx.subagents。
 export const inject = ['tools', 'subagents', 'llm']
 
-const ROLES = ['pm', 'lead', 'worker', 'tech']
+const ROLES = ['pm', 'lead', 'worker', 'tech', 'review']
 
 const EFFORTS = ['off', 'low', 'high', 'max']
 
@@ -83,6 +83,13 @@ export function apply(ctx, config) {
             '可选，只覆盖这一单的推理档位。不传就用该角色在设置里配的默认档位。'
             + 'off 适合纯机械执行，low 适合套路活，high 需要判断，max 极难。',
         },
+        reuse: {
+          type: 'string',
+          description:
+            '可选。要接手的已存在下级的名字（team_status 里看到的那个）。'
+            + '给了它就把任务追加给那个会话、复用它已有的上下文，不新开；'
+            + '不给就新建一个。同战线接着干、或者复核上一轮的问题时用它。',
+        },
       },
       required: ['description', 'prompt'],
     },
@@ -94,6 +101,42 @@ export function apply(ctx, config) {
     async execute(args, exec) {
       const parent = exec?.agent
       if (parent === undefined) throw new Error('没有调用者')
+
+      // 复用分支：不新建会话，把任务追加给一个已经存在的下级。
+      // 判不判断复用是调用方的事（它看得到 team_status），这里只负责执行。
+      if (typeof args?.reuse === 'string' && args.reuse.trim() !== '') {
+        const reuseName = args.reuse.trim()
+        const subagents = ctx.subagents
+        if (subagents === undefined) throw new Error('subagents 服务不可用')
+
+        // 用 listDescendants 而不是 listChildren：在预设 scope 里后者拿到的对象上没有，
+        // 前者是 team_status 一直在用的，确认可用。depth === 1 就是直接下级。
+        let rows = []
+        try {
+          rows = (await subagents.listDescendants(parent.id)) ?? []
+        } catch (error) {
+          throw new Error(`读下级列表失败：${String(error?.message ?? error)}`)
+        }
+        const reuseable = rows.filter(
+          (r) => r.kind === 'child' && r.depth === 1 && r.mode === 'continuable',
+        )
+        const target = reuseable.find((r) => String(r.label ?? '') === reuseName)
+        if (target === undefined) {
+          const names = reuseable.map((r) => String(r.label ?? r.id)).join('、')
+          throw new Error(
+            `找不到叫「${reuseName}」的可复用下级。`
+            + `要传的是它的显示标题（team_status 里那一整串），不是内部短名。`
+            + `现在能复用的有：${names === '' ? '（没有）' : names}`,
+          )
+        }
+        await subagents.sendMessage(
+          parent,
+          target.id,
+          [{ type: 'text', text: String(args.prompt) }],
+          { signal: exec.signal },
+        )
+        return `已把任务追加给 ${reuseName}（复用它的上下文，没有新开会话）。它完成后会有通知。`
+      }
 
       // 只认设置里那一份配置。roles.json 是早期版本的产物，已经不再写入，
       // 再拿它兜底只会让被清空的项悄悄复活成旧值。
@@ -199,6 +242,18 @@ export function apply(ctx, config) {
           providers: safeList(),
         }
         throw new Error(`派活失败：${JSON.stringify(detail, null, 2)}`)
+      }
+
+      // 记下这个子会话是哪个岗位，team_status 写快照时要用。
+      // 进程内映射，重启后旧子会话就没有角色了（显示为 —，可接受）。
+      try {
+        const childId = activation && (activation.childId ?? activation.id)
+        if (childId !== undefined) {
+          const map = globalThis.__dshTeamChildRoles ?? (globalThis.__dshTeamChildRoles = {})
+          map[String(childId)] = { role: childRole, label: String(args.description) }
+        }
+      } catch {
+        /* 旁路，失败不影响派活 */
       }
 
       const usedModel = agentOptions.model ?? '（继承上级）'
